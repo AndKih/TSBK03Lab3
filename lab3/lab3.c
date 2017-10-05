@@ -164,7 +164,7 @@ void updateWorld()
 	// Zero forces
 	int i, j;
 	//Sphere radius assumption.
-	float r = 0.18f;
+	float r = kBallSize;
 	for (i = 0; i < kNumBalls; i++)
 	{
 		ball[i].F = SetVector(0,0,0);
@@ -189,11 +189,11 @@ void updateWorld()
         for (j = i+1; j < kNumBalls; j++)
         {
 		// YOUR CODE HERE
-		
-		if(Norm(VectorSub(ball[i].X, ball[j].X)) < r)
+		vec3 normal = Normalize(VectorSub(ball[i].X, ball[j].X));
+		vec3 otherNormal = Normalize(VectorSub(ball[j].X, ball[i].X));
+		vec3 speedDiff = Normalize(VectorSub(ball[i].P, ball[j].P));
+		if(Norm(VectorSub(ball[i].X, ball[j].X)) < 2*r && DotProduct(speedDiff, normal) < 0)
 		{
-		      vec3 normal = Normalize(VectorSub(ball[i].X, ball[j].X));
-		      vec3 otherNormal = Normalize(VectorSub(ball[j].X, ball[i].X));
 		      vec3 ri = ScalarMult(normal, r);
 		      vec3 rj = ScalarMult(otherNormal, r);
 		      vec3 speedi = ScalarMult(ball[i].P, 1/ball[i].mass);
@@ -205,15 +205,15 @@ void updateWorld()
 		      mat4 balliInertiaInv = S((2.0f/5.0f)*ball[i].mass*pow(r, 2), (2.0f/5.0f)*ball[i].mass*pow(r, 2), (2.0f/5.0f)*ball[i].mass*pow(r, 2));
 		      mat4 balljInertiaInv = S((2.0f/5.0f)*ball[j].mass*pow(r, 2), (2.0f/5.0f)*ball[j].mass*pow(r, 2), (2.0f/5.0f)*ball[j].mass*pow(r, 2));
 		      //Calculate scalar value impJ.
-		      float eps = 0;
-		      float impJ = speedRelProj*(1 - eps)/
+		      float eps = 1;
+		      float impJ = speedRelProj*(- 1 - eps)/
 		      ((1/ball[i].mass) + (1/ball[j].mass) + DotProduct(normal, 
-		      (VectorAdd(CrossProduct(MultVec3(balliInertiaInv, CrossProduct(ri, normal)), ri), 
-		      CrossProduct(MultVec3(balljInertiaInv, CrossProduct(rj, normal)), rj)
+		      (VectorAdd(MultVec3(balliInertiaInv, CrossProduct(CrossProduct(ri, normal), ri)), 
+		      MultVec3(balljInertiaInv, CrossProduct(CrossProduct(rj, normal), rj))
 		      ))));
 		      float deltaVi = impJ/ball[i].mass;
 		      float deltaVj = impJ/ball[j].mass;
-		      printf("%.6f\n", impJ);
+		      //printf("%.6f\n", impJ);
 		      /*printf("Normals:\n");
 		      printVec3(normal);
 		      printVec3(otherNormal);
@@ -225,14 +225,15 @@ void updateWorld()
 			    printf("PRE\n");
 			    printVec3(ball[i].P);
 		      }*/
-		      ball[i].P = VectorAdd(ball[i].P, ScalarMult(normal, deltaVi));
+		      //ball[i].F = VectorAdd(ball[i].F, ScalarMult(normal, deltaVi));
+		      ball[i].F = ScalarMult(normal, impJ/deltaT);
 		      /*if(i > 4)
 		      {
 			    printf("POST\n");
 			    printVec3(ScalarMult(normal, deltaVi));
 			    printVec3(ball[i].P);
 		      }*/
-		      ball[j].P = VectorAdd(ball[j].P, ScalarMult(otherNormal, deltaVj));
+		      ball[j].F = ScalarMult(otherNormal, impJ/deltaT);
 		      //vec3 ball1NewVec = Normalize(VectorSub(ball[i].X, ball[j].X));
 		      //vec3 ball2NewVec = Normalize(VectorSub(ball[j].X, ball[i].X));
 		      //ball[i].P = ball1NewVec;
@@ -248,6 +249,23 @@ void updateWorld()
 	for (i = 0; i < kNumBalls; i++)
 	{
 		// YOUR CODE HERE
+		//F_f = myF_N
+		//F_N = mg
+		//T = r cross F_f
+		float g = 9.8f;
+		float my = 0.2f;
+		mat4 ballInertia = S((2.0f/5.0f)*ball[i].mass*pow(r, 2), (2.0f/5.0f)*ball[i].mass*pow(r, 2), (2.0f/5.0f)*ball[i].mass*pow(r, 2));
+		//vec3 dir = SetVector(-ball[i].P.x, -ball[i].P.y, -ball[i].P.z);
+		vec3 down = SetVector(0.0f, -r, 0.0f);
+		vec3 rotSpeed = CrossProduct(ball[i].omega, down);
+		rotSpeed = VectorAdd(rotSpeed, ball[i].v);
+		vec3 friction = ScalarMult(rotSpeed, -my);
+		ball[i].F = VectorAdd(friction, ball[i].F);
+		ball[i].T = CrossProduct(down, friction);
+		/*printf("Dir!\n");
+		printVec3(dir);
+		printf("Friction!\n");
+		printVec3(friction);*/
 	}
 
 // Update state, follows the book closely
@@ -366,7 +384,7 @@ void init()
 	{
 		ball[i].mass = 1.0;
 		ball[i].X = SetVector(xcoord, 0.0, start-offset);
-		ball[i].P = SetVector(((float)(i % 13))/ 50.0, 0.0, ((float)(i % 15))/50.0);
+		ball[i].P = SetVector(((float)(i % 13))/ 10.0, 0.0, ((float)(i % 15))/10.0);
 		ball[i].R = IdentityMatrix();
 		offset += baseOffset;
 		if(start - offset < -1.6f)
@@ -376,14 +394,27 @@ void init()
 		}
 	}
 	/*ball[0].X = SetVector(0, 0, 0);
-	ball[1].X = SetVector(0, 0, 0.5);
-	ball[2].X = SetVector(0.0, 0, 1.0);
-	ball[3].X = SetVector(0, 0, 1.5);*/
+	ball[1].X = SetVector(0, 0, 0.2);
+	ball[2].X = SetVector(0.0, 0, 0.4);
+	ball[3].X = SetVector(0, 0, 0.6);*/
 	ball[0].P = SetVector(0, 0, 0);
 	ball[1].P = SetVector(0, 0, 0);
 	ball[2].P = SetVector(0, 0, 0);
 	ball[3].P = SetVector(0, 0, 1.00);
-
+	/*ball[5].mass = 10.0f;
+	ball[5].P = SetVector(0, 0, 10.0f);*/
+	
+    /** Newtons Vagga, kNumBalls = 4 **/
+    /*ball[0].X = SetVector(0, 0, 0);
+    ball[1].X = SetVector(0, 0, 0.2);
+    ball[2].X = SetVector(0.0, 0, 0.4);
+    ball[3].X = SetVector(0, 0, 0.6);
+    ball[0].P = SetVector(0, 0, 0);
+    ball[1].P = SetVector(0, 0, 0);
+    ball[2].P = SetVector(0, 0, 0);
+    ball[3].P = SetVector(0, 0, 1.00);*/
+    
+    
     cam = SetVector(0, 2, 2);
     point = SetVector(0, 0, 0);
     zprInit(&viewMatrix, cam, point);  // camera controls
