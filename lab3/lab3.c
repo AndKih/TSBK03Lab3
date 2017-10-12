@@ -273,10 +273,11 @@ void updateWorld()
 	{
 		vec3 dX, dP, dL, dO;
 		mat4 Rd;
-	      
+	        float massConst = 500000.0f;
 		// Note: omega is not set. How do you calculate it?
 		// YOUR CODE HERE
-		mat4 balliInertiaInv = S((2.0f/5.0f)*ball[i].mass*pow(r, 2), (2.0f/5.0f)*ball[i].mass*pow(r, 2), (2.0f/5.0f)*ball[i].mass*pow(r, 2));
+		
+		mat4 balliInertiaInv = S(massConst*ball[i].mass*pow(r, 2), massConst*ball[i].mass*pow(r, 2), massConst*ball[i].mass*pow(r, 2));
 		//printMat4(balliInertiaInv);
 		//NOTE: Omega is currently all zeroes.
 		ball[i].omega = MultVec3(balliInertiaInv, ball[i].L);		
